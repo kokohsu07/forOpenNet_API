@@ -2,18 +2,11 @@ import logging
 import pytest
 import requests
 from config import *
+from test_data import *
 
 LOGGER = logging.getLogger(__name__)
 
-@pytest.mark.parametrize("api_key, phone_number, expected_valid", [
-    (API_KEY, '14155552671', True),
-    (API_KEY, '+14155552671', True),
-    (API_KEY, '14155', False),
-    (API_KEY, '', False),
-    (API_KEY, 'AA', False),
-    (INVALID_API_KEY, '14155552671', False),
-    (EMPTY_API_KEY,'14155552671', False)
-])
+@pytest.mark.parametrize("api_key, phone_number, expected_valid", test_data_validation_phone_number)
 def test_numverify_validation_phone_number(api_key, phone_number, expected_valid):
     params = {
         REQUEST_ACCESS_KEY : api_key,
@@ -64,13 +57,7 @@ def test_numverify_validation_phone_number(api_key, phone_number, expected_valid
 
 
 
-@pytest.mark.parametrize("api_key, country_code, expect_country_name, expect_dialling_code", [
-    (API_KEY, 'AF', 'Afghanistan', '+93'),
-    (API_KEY, 'AL', 'Albania', '+355'),
-    (API_KEY, 'DZ', 'Algeria', '+213'),
-    (INVALID_API_KEY, 'DZ', 'Algeria', '+213'),
-    (EMPTY_API_KEY, 'DZ', 'Algeria', '+213')
-])
+@pytest.mark.parametrize("api_key, country_code, expect_country_name, expect_dialling_code", test_data_list_of_countries)
 def test_numverify_list_of_countries(api_key, country_code, expect_country_name, expect_dialling_code):
     params = {
         REQUEST_ACCESS_KEY : api_key,
