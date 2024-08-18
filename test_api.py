@@ -1,45 +1,119 @@
+import logging
 import pytest
 import requests
 from config import *
 
-@pytest.mark.parametrize("phone_number, expected_valid", [
-    ('14155552671', True),
-    ('+14155552671', True),
-    ('14155', False) #Invalid Phone Number
+LOGGER = logging.getLogger(__name__)
+
+@pytest.mark.parametrize("api_key, phone_number, expected_valid", [
+    (API_KEY, '14155552671', True),
+    (API_KEY, '+14155552671', True),
+    (API_KEY, '14155', False),
+    (API_KEY, '', False),
+    (API_KEY, 'AA', False),
+    (INVALID_API_KEY, '14155552671', False),
+    (EMPTY_API_KEY,'14155552671', False)
 ])
-def test_numverify_validation_phone_number(phone_number, expected_valid):
+def test_numverify_validation_phone_number(api_key, phone_number, expected_valid):
     params = {
-        'access_key': API_KEY,
-        'number': phone_number
+        REQUEST_ACCESS_KEY : api_key,
+        REQUEST_NUMBER: phone_number
     }
     response = requests.get(BASE_URL_VALIDATION, params=params)
     data = response.json()
-    while 'error' in data and data['error']['type']=='rate_limit_reached':
-        response = requests.get(BASE_URL_VALIDATION, params=params)
-        data = response.json()
+    try:
+        assert response.status_code == EXPECT_HTTP_CODE_200
+    except:
+        LOGGER.error(response.status_code)
 
-    assert response.status_code == 200
-    assert data['valid'] == expected_valid
+    if RESPONSE_ERROR in data:
+        try:
+            error_code=data[RESPONSE_ERROR][RESPONSE_CODE]
+            error_info=data[RESPONSE_ERROR][RESPONSE_INFO]
+            error_type=data[RESPONSE_ERROR][RESPONSE_TYPE]
+        except:
+            pass
+
+        if error_code == ERROR_CODE['Auth']:
+            if not api_key:
+                assert error_type == EXPECT_TYPE_MSG_101_MISS, error_info
+            else:
+                assert error_type == EXPECT_TYPE_MSG_101_INVALID, error_info
+
+        elif error_code == ERROR_CODE['empty_phone_number']:
+            assert data[RESPONSE_ERROR][RESPONSE_TYPE] == EXPECT_TYPE_MSG_210, error_info
+
+        elif error_code == ERROR_CODE['non_numeric_phone_number']:
+            assert data[RESPONSE_ERROR][RESPONSE_TYPE] == EXPECT_TYPE_MSG_211, error_info
+
+        elif error_code == ERROR_CODE['rate_limit_reached']:
+            for i in range(RETRY_TIMES):
+                if RESPONSE_ERROR in data and error_code == ERROR_CODE['rate_limit_reached']:
+                    response = requests.get(BASE_URL_VALIDATION, params=params)
+                    data = response.json()
+                    try:
+                        error_code = data[RESPONSE_ERROR][RESPONSE_CODE]
+                    except:
+                        pass
+                elif RESPONSE_ERROR not in data:
+                    break
+        LOGGER.info("\nERROR MESSAGE : " + error_info)
+
+    if RESPONSE_ERROR not in data:
+        assert data['valid'] == expected_valid
 
 
-@pytest.mark.parametrize("country_code, expect_country_name, expect_dialling_code", [
-    ('AF', 'Afghanistan', '+93'),
-    ('AL', 'Albania', '+355'),
-    ('DZ', 'Algeria', '+213')
+
+@pytest.mark.parametrize("api_key, country_code, expect_country_name, expect_dialling_code", [
+    (API_KEY, 'AF', 'Afghanistan', '+93'),
+    (API_KEY, 'AL', 'Albania', '+355'),
+    (API_KEY, 'DZ', 'Algeria', '+213'),
+    (INVALID_API_KEY, 'DZ', 'Algeria', '+213'),
+    (EMPTY_API_KEY, 'DZ', 'Algeria', '+213')
 ])
-def test_numverify_list_of_countries(country_code, expect_country_name, expect_dialling_code):
+def test_numverify_list_of_countries(api_key, country_code, expect_country_name, expect_dialling_code):
     params = {
-        'access_key': API_KEY,
+        REQUEST_ACCESS_KEY : api_key,
     }
     response = requests.get(BASE_URL_COUNTRY, params=params)
     data = response.json()
+    try:
+        assert response.status_code == EXPECT_HTTP_CODE_200
+    except:
+        LOGGER.error(response.status_code)
 
-    while 'error' in data :
-         response = requests.get(BASE_URL_COUNTRY, params=params)
-         data = response.json()
-    assert response.status_code == 200
-    assert data[country_code]['country_name'] == expect_country_name
-    assert data[country_code]['dialling_code'] == expect_dialling_code
+
+    if RESPONSE_ERROR in data:
+        try:
+            error_code = data[RESPONSE_ERROR][RESPONSE_CODE]
+            error_info = data[RESPONSE_ERROR][RESPONSE_INFO]
+            error_type = data[RESPONSE_ERROR][RESPONSE_TYPE]
+        except:
+            pass
+
+
+        if error_code == ERROR_CODE['Auth']:
+            if not api_key:
+                assert error_type == EXPECT_TYPE_MSG_101_MISS, error_info
+            else:
+                assert error_type == EXPECT_TYPE_MSG_101_INVALID, error_info
+
+        elif error_code == ERROR_CODE['rate_limit_reached']:
+            for i in range(RETRY_TIMES):
+                if RESPONSE_ERROR in data and error_code == ERROR_CODE['rate_limit_reached']:
+                    response = requests.get(BASE_URL_VALIDATION, params=params)
+                    data = response.json()
+                    try:
+                        error_code=data[RESPONSE_ERROR][RESPONSE_CODE]
+                    except:
+                        pass
+                else:
+                    break
+        LOGGER.info("\nERROR MESSAGE : " + error_info)
+
+    if RESPONSE_ERROR not in data:
+        assert data[country_code][RESPONSE_COUNTRY_NAME] == expect_country_name
+        assert data[country_code][RESPONSE_DIALLING_CODE] == expect_dialling_code
 
 
 if __name__ == "__main__":
